@@ -2,7 +2,7 @@ import type { GenerationParams, RouterConfig } from "../config.js";
 import { type DecisionSchema, toJsonSchema, narrowSchema } from "./schema.js";
 import { buildMessages } from "./prompt.js";
 import { applyTemplate, complete, BackendError } from "./backend.js";
-import { extractTokenLogprobs, computeAnswerConfidence } from "./confidence.js";
+import { confidenceFor } from "./confidence.js";
 import { shouldEscalate } from "./router.js";
 
 export class DecideError extends Error {}
@@ -34,17 +34,29 @@ export interface DecideOptions {
   nProbs?: number;
 }
 
-interface RawAnswers {
+export interface RawAnswers {
   [questionName: string]: string;
 }
 
-async function answerSchema(
+export interface AnswerSchemaResult {
+  answers: RawAnswers;
+  content: string;
+  raw: unknown;
+  latencyMs: number;
+}
+
+/**
+ * Sends a whole schema (one or more questions) to a single model in one
+ * call. Exported so bench.ts can drive the fast-only and deep-only modes
+ * directly, without going through decide()'s routing.
+ */
+export async function answerSchema(
   baseUrl: string,
   schema: DecisionSchema,
   state: string | Record<string, unknown>,
   generation: GenerationParams,
   nProbs: number,
-): Promise<{ answers: RawAnswers; content: string; raw: unknown; latencyMs: number }> {
+): Promise<AnswerSchemaResult> {
   const messages = buildMessages(state, schema);
   const jsonSchema = toJsonSchema(schema);
   const prompt = await applyTemplate(baseUrl, messages);
@@ -74,7 +86,6 @@ export async function decide(opts: DecideOptions): Promise<DecideResult> {
   const startedAt = Date.now();
 
   const fast = await answerSchema(opts.fastBaseUrl, opts.schema, opts.state, opts.fastGeneration, nProbs);
-  const fastTokens = extractTokenLogprobs(fast.raw);
 
   const results: QuestionResult[] = [];
   const toEscalate: string[] = [];
@@ -85,9 +96,7 @@ export async function decide(opts: DecideOptions): Promise<DecideResult> {
       toEscalate.push(question.name);
       continue;
     }
-    const confidence = fastTokens
-      ? (computeAnswerConfidence(fast.content, fastTokens, question.name, opts.router.calibration.temperature) ?? undefined)
-      : undefined;
+    const confidence = confidenceFor(fast.raw, fast.content, question.name, opts.router.calibration.temperature);
     if (shouldEscalate(confidence, opts.router)) {
       toEscalate.push(question.name);
       continue;
@@ -105,13 +114,10 @@ export async function decide(opts: DecideOptions): Promise<DecideResult> {
     toEscalate.map(async (name) => {
       const narrowed = narrowSchema(opts.schema, name);
       const deep = await answerSchema(opts.deepBaseUrl, narrowed, opts.state, opts.deepGeneration, nProbs);
-      const deepTokens = extractTokenLogprobs(deep.raw);
       const value = deep.answers[name];
       const question = narrowed.questions[0]!;
       const answer = isAllowedAnswer(narrowed, name, value) ? value : question.options[0]!;
-      const confidence = deepTokens
-        ? (computeAnswerConfidence(deep.content, deepTokens, name, opts.router.calibration.temperature) ?? undefined)
-        : undefined;
+      const confidence = confidenceFor(deep.raw, deep.content, name, opts.router.calibration.temperature);
       const result: QuestionResult = {
         name,
         answer,

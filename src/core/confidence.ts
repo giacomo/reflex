@@ -121,3 +121,15 @@ export function computeAnswerConfidence(
   const probabilities = spanned.map((t) => calibratedProbability(t, temperature));
   return probabilities.reduce((a, b) => a * b, 1);
 }
+
+/** Convenience wrapper: extracts logprobs from a raw /completion response and scores one question. */
+export function confidenceFor(
+  raw: unknown,
+  content: string,
+  questionName: string,
+  temperature: number,
+): number | undefined {
+  const tokens = extractTokenLogprobs(raw);
+  if (!tokens) return undefined;
+  return computeAnswerConfidence(content, tokens, questionName, temperature);
+}
