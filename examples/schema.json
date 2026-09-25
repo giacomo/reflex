@@ -1,0 +1,19 @@
+{
+  "questions": [
+    {
+      "name": "sentiment",
+      "options": ["positive", "neutral", "negative"],
+      "description": "Overall tone of the customer's message"
+    },
+    {
+      "name": "priority",
+      "options": ["low", "medium", "high"],
+      "description": "How urgently this ticket needs a response"
+    },
+    {
+      "name": "needs_human",
+      "options": ["yes", "no"],
+      "description": "Whether this should be routed to a human agent instead of an automated reply"
+    }
+  ]
+}
