@@ -98,8 +98,9 @@ export function registerUpDownStatusCommands(program: Command): void {
         }
         for (const r of results) {
           const state = r.running ? (r.healthy ? "running (healthy)" : "running (unhealthy)") : "stopped";
+          const memory = r.memoryBytes !== undefined ? formatBytes(r.memoryBytes) : "-";
           process.stdout.write(
-            `${r.role.padEnd(4)} ${r.name.padEnd(18)} port ${r.port}  pid ${r.pid ?? "-"}  ${state}\n`,
+            `${r.role.padEnd(4)} ${r.name.padEnd(18)} port ${r.port}  pid ${String(r.pid ?? "-").padEnd(8)} mem ${memory.padEnd(10)} ${state}\n`,
           );
         }
       } catch (err) {

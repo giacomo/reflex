@@ -1,4 +1,5 @@
 import os from "node:os";
+import { spawnSync } from "node:child_process";
 
 export interface MemoryRequirement {
   role: "fast" | "deep";
@@ -30,3 +31,19 @@ export function checkMemory(
     sufficient: totalRequiredBytes <= availableBytes,
   };
 }
+
+export interface ProcessMemoryReader {
+  (pid: number): number | undefined;
+}
+
+/** Resident set size of a running process, via `ps` (available on both Linux and macOS). */
+export const readProcessRssBytes: ProcessMemoryReader = (pid) => {
+  try {
+    const result = spawnSync("ps", ["-o", "rss=", "-p", String(pid)], { encoding: "utf8" });
+    if (result.status !== 0) return undefined;
+    const kb = Number(result.stdout.trim());
+    return Number.isFinite(kb) ? kb * 1024 : undefined;
+  } catch {
+    return undefined;
+  }
+};

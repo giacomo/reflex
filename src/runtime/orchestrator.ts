@@ -3,7 +3,13 @@ import { pidFile as pidFilePath, logFile as logFilePath, runtimeDir } from "../p
 import { getLocalModelPath, readManifest } from "../models/manager.js";
 import { LlamaCppRuntime, type Runtime } from "./runtime.js";
 import { readPidFile, isProcessAlive } from "./server.js";
-import { checkMemory, type MemoryCheck, type MemoryRequirement } from "./memory.js";
+import {
+  checkMemory,
+  readProcessRssBytes,
+  type MemoryCheck,
+  type MemoryRequirement,
+  type ProcessMemoryReader,
+} from "./memory.js";
 import { isPortFree } from "./ports.js";
 
 export class OrchestratorError extends Error {}
@@ -191,21 +197,24 @@ export interface StatusResultItem {
   pid: number | undefined;
   running: boolean;
   healthy: boolean;
+  memoryBytes: number | undefined;
 }
 
 export async function statusAll(
   config: ReflexConfig,
-  opts: { only?: readonly Role[]; runtime?: Runtime } = {},
+  opts: { only?: readonly Role[]; runtime?: Runtime; readMemory?: ProcessMemoryReader } = {},
 ): Promise<StatusResultItem[]> {
   const roles = opts.only ?? ROLES;
   const runtime = opts.runtime ?? new LlamaCppRuntime(runtimeDir());
+  const readMemory = opts.readMemory ?? readProcessRssBytes;
   const results: StatusResultItem[] = [];
   for (const role of roles) {
     const handle = serverHandle(config, role);
     const pid = readPidFile(handle.pidFile);
     const running = pid !== undefined && isProcessAlive(pid);
     const healthy = running && (await runtime.health(handle.baseUrl));
-    results.push({ role, name: handle.name, port: handle.port, pid, running, healthy });
+    const memoryBytes = running && pid !== undefined ? readMemory(pid) : undefined;
+    results.push({ role, name: handle.name, port: handle.port, pid, running, healthy, memoryBytes });
   }
   return results;
 }

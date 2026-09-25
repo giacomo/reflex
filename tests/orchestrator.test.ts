@@ -142,10 +142,26 @@ describe("orchestrator", () => {
     fs.writeFileSync(fastPid, String(process.pid));
 
     const runtime = createFakeRuntime({ defaultHealthy: true });
-    const results = await statusAll(config, { runtime });
+    const results = await statusAll(config, { runtime, readMemory: () => 123_456_789 });
     expect(results).toEqual([
-      { role: "fast", name: "fast-model", port: 18081, pid: process.pid, running: true, healthy: true },
-      { role: "deep", name: "deep-model", port: 18082, pid: undefined, running: false, healthy: false },
+      {
+        role: "fast",
+        name: "fast-model",
+        port: 18081,
+        pid: process.pid,
+        running: true,
+        healthy: true,
+        memoryBytes: 123_456_789,
+      },
+      {
+        role: "deep",
+        name: "deep-model",
+        port: 18082,
+        pid: undefined,
+        running: false,
+        healthy: false,
+        memoryBytes: undefined,
+      },
     ]);
   });
 });
