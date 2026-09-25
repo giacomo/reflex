@@ -8,6 +8,7 @@ import { registerSetupCommand } from "./commands/setup.js";
 import { registerDecideCommand } from "./commands/decide.js";
 import { registerBenchCommand } from "./commands/bench.js";
 import { registerCalibrateCommand } from "./commands/calibrate.js";
+import { registerServeCommand } from "./commands/serve.js";
 
 const VERSION = "0.1.0";
 
@@ -24,6 +25,7 @@ registerSetupCommand(program);
 registerDecideCommand(program);
 registerBenchCommand(program);
 registerCalibrateCommand(program);
+registerServeCommand(program);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
