@@ -1,9 +1,25 @@
 {
-  "name": "reflex-cli",
+  "name": "reflex-decide",
   "version": "0.1.0",
   "description": "Local decision layer for agents and workflows: typed, confidence-scored decisions from two local models.",
   "license": "Apache-2.0",
   "type": "module",
+  "keywords": [
+    "llm",
+    "agent",
+    "local-llm",
+    "llama.cpp",
+    "decision",
+    "cli",
+    "structured-output"
+  ],
+  "author": "Giacomo Barbalinardo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/giacomo/reflex.git"
+  },
+  "homepage": "https://github.com/giacomo/reflex#readme",
+  "bugs": "https://github.com/giacomo/reflex/issues",
   "bin": {
     "reflex": "./dist/cli/index.js"
   },
@@ -29,7 +45,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
-    "cli": "tsx src/cli/index.ts"
+    "cli": "tsx src/cli/index.ts",
+    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build"
   },
   "dependencies": {
     "commander": "^12.1.0",
