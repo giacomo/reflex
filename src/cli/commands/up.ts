@@ -1,12 +1,21 @@
 import { Command } from "commander";
-import { loadConfig, ConfigError } from "../../config.js";
+import { loadConfig, ConfigError, type ReflexConfig } from "../../config.js";
 import { upAll, downAll, statusAll, OrchestratorError, type Role } from "../../runtime/orchestrator.js";
 import { UnsupportedPlatformError } from "../../runtime/platform.js";
+import { pullModel, ModelManagerError } from "../../models/manager.js";
 import { formatBytes } from "../format.js";
 import { confirm } from "../prompt.js";
+import { renderProgress } from "../progress.js";
+
+const SMALLER_DEEP_MODEL = "spark-x2.5-1.7b";
 
 function handleKnownErrors(err: unknown): never | void {
-  if (err instanceof ConfigError || err instanceof OrchestratorError || err instanceof UnsupportedPlatformError) {
+  if (
+    err instanceof ConfigError ||
+    err instanceof OrchestratorError ||
+    err instanceof UnsupportedPlatformError ||
+    err instanceof ModelManagerError
+  ) {
     process.stderr.write(`${err.message}\n`);
     process.exitCode = 1;
     return;
@@ -42,10 +51,31 @@ export function registerUpDownStatusCommands(program: Command): void {
           const fastOnly = await confirm("Start only the fast model instead?");
           if (fastOnly) {
             outcome = await upAll(config, { only: ["fast"] });
+          } else if (
+            config.models.deep !== SMALLER_DEEP_MODEL &&
+            (await confirm(`Use the smaller ${SMALLER_DEEP_MODEL} for the deep layer instead?`))
+          ) {
+            const smallerConfig: ReflexConfig = {
+              ...config,
+              models: { ...config.models, deep: SMALLER_DEEP_MODEL },
+            };
+            const pulled = await pullModel(SMALLER_DEEP_MODEL, {
+              confirm: async (info) => {
+                process.stdout.write(
+                  `${info.repo} :: ${info.file}\n  size: ${formatBytes(info.sizeBytes)}\n  license: ${info.license} (${info.licenseUrl})\n`,
+                );
+                return confirm("Download this file?");
+              },
+              onProgress: renderProgress(SMALLER_DEEP_MODEL),
+            });
+            if (pulled.status === "cancelled") {
+              process.stdout.write("Cancelled.\n");
+              process.exitCode = 1;
+              return;
+            }
+            outcome = await upAll(smallerConfig);
           } else {
-            process.stdout.write(
-              "Aborting. Consider configuring a smaller deep model (e.g. spark-x2.5-1.7b) or use --force.\n",
-            );
+            process.stdout.write("Aborting (use --force to start anyway).\n");
             process.exitCode = 1;
             return;
           }
