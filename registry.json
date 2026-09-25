@@ -26,6 +26,19 @@
       "supportsThinkingToggle": true,
       "requiresRuntime": "fork",
       "notes": "Native Spark2_5ForCausalLM support requires the XHToken/llama.cpp fork. GGUF file names are not hardcoded here: reflex resolves the actual quant file name from the Hugging Face tree API at pull time, matching quantPreference in order."
+    },
+    "spark-x2.5-1.7b": {
+      "displayName": "Spark-X2.5-1.7B",
+      "repo": "XHToken/Spark-X2.5-1.7B-GGUF",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/XHToken/Spark-X2.5-1.7B-GGUF/blob/main/README.md",
+      "role": "deep",
+      "quantPreference": ["Q4_K_M", "Q4_K_S", "Q4_0", "Q8_0"],
+      "minMemoryBytesMultiplier": 1.5,
+      "contextLength": 1048576,
+      "supportsThinkingToggle": true,
+      "requiresRuntime": "fork",
+      "notes": "Smaller sibling of spark-x2.5-4b, offered by `reflex up` as a lower-memory deep-layer fallback. Same fork requirement and quant-resolution approach."
     }
   }
 }

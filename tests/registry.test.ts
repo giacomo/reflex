@@ -5,7 +5,7 @@ describe("registry", () => {
   it("lists the built-in fast and deep models", () => {
     const models = listRegistryModels();
     const names = models.map((m) => m.name).sort();
-    expect(names).toEqual(["minicpm5-1b", "spark-x2.5-4b"]);
+    expect(names).toEqual(["minicpm5-1b", "spark-x2.5-1.7b", "spark-x2.5-4b"]);
   });
 
   it("resolves minicpm5-1b as the fast role", () => {

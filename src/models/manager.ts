@@ -15,6 +15,7 @@ export interface ModelSource {
   quantPreference: readonly string[];
   role: "fast" | "deep";
   requiresRuntime: "any" | "fork";
+  minMemoryBytesMultiplier: number;
 }
 
 export interface ModelManifest {
@@ -27,6 +28,7 @@ export interface ModelManifest {
   licenseUrl: string;
   role: "fast" | "deep";
   requiresRuntime: "any" | "fork";
+  minMemoryBytesMultiplier: number;
   pulledAt: string;
 }
 
@@ -65,6 +67,7 @@ function resolveSource(name: string, unsafeRepo?: string): ModelSource {
       quantPreference: UNSAFE_QUANT_PREFERENCE,
       role: "fast",
       requiresRuntime: "any",
+      minMemoryBytesMultiplier: 1.5,
     };
   }
   const model: RegistryModel = getRegistryModel(name);
@@ -73,6 +76,7 @@ function resolveSource(name: string, unsafeRepo?: string): ModelSource {
     license: model.license,
     licenseUrl: model.licenseUrl,
     quantPreference: model.quantPreference,
+    minMemoryBytesMultiplier: model.minMemoryBytesMultiplier,
     role: model.role,
     requiresRuntime: model.requiresRuntime,
   };
@@ -163,6 +167,7 @@ export async function pullModel(name: string, opts: PullOptions = {}): Promise<P
     licenseUrl: source.licenseUrl,
     role: source.role,
     requiresRuntime: source.requiresRuntime,
+    minMemoryBytesMultiplier: source.minMemoryBytesMultiplier,
     pulledAt: new Date().toISOString(),
   };
   fs.writeFileSync(manifestPath(name), JSON.stringify(manifest, null, 2));

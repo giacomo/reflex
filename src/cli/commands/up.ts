@@ -1,0 +1,109 @@
+import { Command } from "commander";
+import { loadConfig, ConfigError } from "../../config.js";
+import { upAll, downAll, statusAll, OrchestratorError, type Role } from "../../runtime/orchestrator.js";
+import { UnsupportedPlatformError } from "../../runtime/platform.js";
+import { formatBytes } from "../format.js";
+import { confirm } from "../prompt.js";
+
+function handleKnownErrors(err: unknown): never | void {
+  if (err instanceof ConfigError || err instanceof OrchestratorError || err instanceof UnsupportedPlatformError) {
+    process.stderr.write(`${err.message}\n`);
+    process.exitCode = 1;
+    return;
+  }
+  throw err;
+}
+
+export function registerUpDownStatusCommands(program: Command): void {
+  program
+    .command("up")
+    .description("Start the fast and/or deep model servers")
+    .option("--config <path>", "path to reflex.config.json")
+    .option("--fast-only", "only start the fast model server", false)
+    .option("--deep-only", "only start the deep model server", false)
+    .option("--force", "skip the pre-flight memory check", false)
+    .action(async (opts: { config?: string; fastOnly: boolean; deepOnly: boolean; force: boolean }) => {
+      try {
+        const config = loadConfig(opts.config);
+        const only: Role[] | undefined = opts.fastOnly ? ["fast"] : opts.deepOnly ? ["deep"] : undefined;
+
+        let outcome = await upAll(config, { ...(only ? { only } : {}), force: opts.force });
+        if (outcome.kind === "insufficient-memory") {
+          const { memory } = outcome;
+          process.stdout.write(
+            `Not enough free memory to start ${memory.requirements.map((r) => r.name).join(" + ")}: ` +
+              `need ~${formatBytes(memory.totalRequiredBytes)}, have ${formatBytes(memory.availableBytes)} free.\n`,
+          );
+          if (only) {
+            process.stdout.write("Aborting (use --force to start anyway).\n");
+            process.exitCode = 1;
+            return;
+          }
+          const fastOnly = await confirm("Start only the fast model instead?");
+          if (fastOnly) {
+            outcome = await upAll(config, { only: ["fast"] });
+          } else {
+            process.stdout.write(
+              "Aborting. Consider configuring a smaller deep model (e.g. spark-x2.5-1.7b) or use --force.\n",
+            );
+            process.exitCode = 1;
+            return;
+          }
+        }
+
+        if (outcome.kind === "ok") {
+          for (const result of outcome.results) {
+            const verb = result.status === "already-running" ? "already running" : "started";
+            process.stdout.write(`${result.role} (${result.name}): ${verb} on port ${result.port} (pid ${result.pid})\n`);
+          }
+        }
+      } catch (err) {
+        handleKnownErrors(err);
+      }
+    });
+
+  program
+    .command("down")
+    .description("Stop the fast and/or deep model servers")
+    .option("--config <path>", "path to reflex.config.json")
+    .option("--fast-only", "only stop the fast model server", false)
+    .option("--deep-only", "only stop the deep model server", false)
+    .action(async (opts: { config?: string; fastOnly: boolean; deepOnly: boolean }) => {
+      try {
+        const config = loadConfig(opts.config);
+        const only: Role[] | undefined = opts.fastOnly ? ["fast"] : opts.deepOnly ? ["deep"] : undefined;
+        const results = await downAll(config, only ? { only } : {});
+        for (const result of results) {
+          process.stdout.write(
+            `${result.role} (${result.name}): ${result.stopped ? "stopped" : "was not running"}\n`,
+          );
+        }
+      } catch (err) {
+        handleKnownErrors(err);
+      }
+    });
+
+  program
+    .command("status")
+    .description("Show whether the model servers are running and healthy")
+    .option("--config <path>", "path to reflex.config.json")
+    .option("--json", "output machine-readable JSON", false)
+    .action(async (opts: { config?: string; json: boolean }) => {
+      try {
+        const config = loadConfig(opts.config);
+        const results = await statusAll(config);
+        if (opts.json) {
+          process.stdout.write(`${JSON.stringify(results, null, 2)}\n`);
+          return;
+        }
+        for (const r of results) {
+          const state = r.running ? (r.healthy ? "running (healthy)" : "running (unhealthy)") : "stopped";
+          process.stdout.write(
+            `${r.role.padEnd(4)} ${r.name.padEnd(18)} port ${r.port}  pid ${r.pid ?? "-"}  ${state}\n`,
+          );
+        }
+      } catch (err) {
+        handleKnownErrors(err);
+      }
+    });
+}

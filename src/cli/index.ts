@@ -2,6 +2,9 @@
 import { Command } from "commander";
 import { TOOL_NAME } from "../constants.js";
 import { registerModelsCommand } from "./commands/models.js";
+import { registerUpDownStatusCommands } from "./commands/up.js";
+import { registerDoctorCommand } from "./commands/doctor.js";
+import { registerSetupCommand } from "./commands/setup.js";
 
 const VERSION = "0.1.0";
 
@@ -12,6 +15,9 @@ program
   .version(VERSION);
 
 registerModelsCommand(program);
+registerUpDownStatusCommands(program);
+registerDoctorCommand(program);
+registerSetupCommand(program);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
