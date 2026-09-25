@@ -46,7 +46,8 @@
     "test:watch": "vitest",
     "lint": "tsc --noEmit",
     "cli": "tsx src/cli/index.ts",
-    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build"
+    "prepublishOnly": "pnpm run typecheck && pnpm test && pnpm run build",
+    "release": "bash scripts/release.sh"
   },
   "dependencies": {
     "commander": "^12.1.0",
