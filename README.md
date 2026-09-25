@@ -81,7 +81,8 @@ A `tasks.jsonl` file (see `examples/tasks.jsonl`) has one JSON object per line:
 
 ## Configuration (`reflex.config.json`)
 
-All fields are optional; shown values are the defaults.
+All fields are optional; shown values are the defaults. `runtime.fast.binary` / `runtime.deep.binary`
+have no default — omit them entirely unless you want to override the built binary (see below).
 
 ```json
 {
@@ -89,9 +90,7 @@ All fields are optional; shown values are the defaults.
   "runtime": {
     "contextSize": { "fast": 4096, "deep": 8192 },
     "gpuLayers": "auto",
-    "threads": -1,
-    "fast": { "binary": null },
-    "deep": { "binary": null }
+    "threads": -1
   },
   "fast": { "temperature": 0.7, "topP": 0.95, "topK": 40, "minP": 0.0 },
   "deep": { "temperature": 1.0, "topP": 0.95, "topK": -1, "minP": 0.0 },
