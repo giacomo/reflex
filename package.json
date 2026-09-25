@@ -21,7 +21,7 @@
   "homepage": "https://github.com/giacomo/reflex#readme",
   "bugs": "https://github.com/giacomo/reflex/issues",
   "bin": {
-    "reflex": "./dist/cli/index.js"
+    "reflex": "dist/cli/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
