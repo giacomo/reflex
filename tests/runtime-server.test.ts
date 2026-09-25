@@ -44,6 +44,40 @@ describe("buildServerArgs", () => {
       "--min-p", "0",
     ]);
   });
+
+  it("adds --repeat-penalty only when repetitionPenalty is set", () => {
+    const withPenalty: GenerationParams = { ...generation, repetitionPenalty: 1.05 };
+    const args = buildServerArgs({
+      binaryPath: "/bin/llama-server",
+      modelPath: "/models/x.gguf",
+      host: "127.0.0.1",
+      port: 8081,
+      contextSize: 4096,
+      gpuLayers: "auto",
+      threads: -1,
+      generation: withPenalty,
+      enableThinking: false,
+      logFile: "/tmp/x.log",
+      pidFile: "/tmp/x.pid",
+    });
+    expect(args).toContain("--repeat-penalty");
+    expect(args[args.indexOf("--repeat-penalty") + 1]).toBe("1.05");
+
+    const withoutPenalty = buildServerArgs({
+      binaryPath: "/bin/llama-server",
+      modelPath: "/models/x.gguf",
+      host: "127.0.0.1",
+      port: 8081,
+      contextSize: 4096,
+      gpuLayers: "auto",
+      threads: -1,
+      generation,
+      enableThinking: false,
+      logFile: "/tmp/x.log",
+      pidFile: "/tmp/x.pid",
+    });
+    expect(withoutPenalty).not.toContain("--repeat-penalty");
+  });
 });
 
 describe("startServer", () => {

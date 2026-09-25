@@ -89,6 +89,21 @@ describe("reflex serve HTTP API", () => {
     expect(res.status).toBe(400);
   });
 
+  it("GET / serves the HTML playground page", async () => {
+    const res = await fetch(`${baseUrl}/`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const text = await res.text();
+    expect(text).toContain("<title>reflex</title>");
+    expect(text).toContain("/decide");
+  });
+
+  it("GET /playground also serves the same page", async () => {
+    const res = await fetch(`${baseUrl}/playground`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+  });
+
   it("unknown routes return 404", async () => {
     const res = await fetch(`${baseUrl}/nope`);
     expect(res.status).toBe(404);

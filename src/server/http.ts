@@ -4,6 +4,7 @@ import { parseDecisionSchema, SchemaError } from "../core/schema.js";
 import { decide, DecideError } from "../core/decide.js";
 import { BackendError } from "../core/backend.js";
 import { serverHandle } from "../runtime/orchestrator.js";
+import { PLAYGROUND_HTML } from "./playground.js";
 
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
@@ -64,6 +65,15 @@ async function handleRequest(
 ): Promise<void> {
   if (req.method === "GET" && req.url === "/health") {
     sendJson(res, 200, { status: "ok" });
+    return;
+  }
+
+  if (req.method === "GET" && (req.url === "/" || req.url === "/playground")) {
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "content-length": Buffer.byteLength(PLAYGROUND_HTML),
+    });
+    res.end(PLAYGROUND_HTML);
     return;
   }
 

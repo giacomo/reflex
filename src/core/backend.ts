@@ -54,6 +54,9 @@ export async function complete(
       top_p: opts.generation.topP,
       top_k: opts.generation.topK,
       min_p: opts.generation.minP,
+      ...(opts.generation.repetitionPenalty !== undefined
+        ? { repeat_penalty: opts.generation.repetitionPenalty }
+        : {}),
       ...(opts.generation.maxTokens !== undefined ? { n_predict: opts.generation.maxTokens } : {}),
       cache_prompt: true,
     }),

@@ -57,15 +57,15 @@ reflex down                       # stop them
 ```
 
 `decide` autostarts the servers if `autostart` is enabled in the config (the default), so `up` is
-optional for a one-off call. Example output:
+optional for a one-off call. Real output from this exact example (Windows, RTX 4090, CUDA build):
 
 ```
 QUESTION             ANSWER          CONFIDENCE BY    LATENCY
-sentiment            negative        0.94       fast  180ms
-priority             high            0.91       fast  180ms
-needs_human          yes             0.62       deep  740ms
+sentiment            negative        0.807      fast  516ms
+priority             high            1.000      deep  208ms
+needs_human          yes             1.000      deep  309ms
 
-Total: 950ms, escalation rate: 33%
+Total: 859ms, escalation rate: 67%
 ```
 
 State can also be JSON (`examples/state.json`) or piped via stdin. `--pretty` prints a table;
@@ -82,7 +82,7 @@ without it, `decide` prints the same result as JSON, suitable for piping into an
 | `reflex status [--json]` | show ports, pids, health |
 | `reflex doctor` | prerequisites, binary, models, server health, structured-output/logprobs/ping checks |
 | `reflex decide --schema <file> [--state <text>\|--state-file <file>] [--pretty]` | one decision |
-| `reflex serve [--port <n>]` | `POST /decide`, `GET /health`, bound to localhost only |
+| `reflex serve [--port <n>]` | `POST /decide`, `GET /health`, plus a `GET /` test page, bound to localhost only |
 | `reflex bench --tasks <file> [--pretty]` | accuracy/p50/p95/escalation-rate/ECE, fast-only vs. deep-only vs. combined |
 | `reflex calibrate --tasks <file>` | fits `router.calibration.temperature` against labeled tasks, saves it to config |
 
@@ -149,11 +149,32 @@ the registry for anything else, at your own risk (license/architecture aren't ve
 
 Read this before trusting a number reflex prints.
 
-- **No speed/quality claims here aren't backed by a `reflex bench` run in this repo.** This README
-  doesn't repeat any numbers about how fast or accurate the fast/deep split is, because none has
-  been run against the real models in the environment this was built in (no GPU/compiler available
-  there). Run `reflex bench --tasks examples/tasks.jsonl --pretty` yourself and trust that output,
-  not general expectations about model size.
+- **The only numbers below are from real `reflex bench` runs against the real models** — on
+  `examples/tasks.jsonl` (6 tasks, 18 questions total), Windows, RTX 4090, CUDA build, both models
+  at their config defaults. Two consecutive runs:
+
+  | mode | accuracy | p50 | p95 | escalation | ECE |
+  | --- | --- | --- | --- | --- | --- |
+  | fast-only (run 1) | 0.39 | 126ms | 355ms | 0% | 0.32 |
+  | fast-only (run 2) | 0.50 | 106ms | 307ms | 0% | 0.14 |
+  | deep-only (run 1) | 0.78 | 361ms | 365ms | 0% | 0.20 |
+  | deep-only (run 2) | 0.78 | 370ms | 390ms | 0% | 0.20 |
+  | combined (run 1) | 0.67 | 493ms | 519ms | 83% | 0.29 |
+  | combined (run 2) | 0.72 | 533ms | 547ms | 89% | 0.25 |
+
+  Three things this small run actually shows, and doesn't:
+  - **Accuracy varies noticeably run to run** (fast-only: 0.39 vs 0.50) because both layers sample
+    at non-zero temperature (0.7 fast, 1.0 deep, per each model's own card) and 18 questions is a
+    tiny sample — one flipped answer moves accuracy by ~5.6 points. Don't read a single run's number
+    as precise.
+  - **`combined` scored *below* `deep-only` alone** on this task set, even while escalating 83-89%
+    of questions. That's not a bug: it means the uncalibrated 0.8 threshold let a few genuinely
+    wrong fast answers through as "confident enough." This is exactly what `reflex calibrate` exists
+    to fix — it wasn't run here, so `router.calibration.temperature` is still the un-fit default 1.0.
+  - This says nothing about accuracy on your own task distribution, or about the models' quality in
+    general — it's 6 illustrative support-ticket examples on one machine. Run
+    `reflex bench --tasks <your own tasks.jsonl> --pretty` (and `reflex calibrate` before trusting
+    the escalation threshold) against your own data before drawing conclusions.
 - **Confidence is an approximation, not a full-vocabulary probability.** llama-server's `n_probs`
   only returns the top-N alternatives it sampled from at each position, not the full vocabulary
   distribution. Temperature scaling here renormalizes and rescales *within that top-N set*, per

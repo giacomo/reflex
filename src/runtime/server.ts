@@ -46,6 +46,9 @@ export function buildServerArgs(config: ServerConfig): string[] {
     "--top-k", String(config.generation.topK),
     "--min-p", String(config.generation.minP),
   ];
+  if (config.generation.repetitionPenalty !== undefined) {
+    args.push("--repeat-penalty", String(config.generation.repetitionPenalty));
+  }
   return args;
 }
 
@@ -66,14 +69,20 @@ export function startServer(config: ServerConfig): StartedServer {
 
   fs.mkdirSync(path.dirname(config.logFile), { recursive: true });
   fs.mkdirSync(path.dirname(config.pidFile), { recursive: true });
-  const log = fs.createWriteStream(config.logFile, { flags: "a" });
 
+  // The child must write its own stdout/stderr directly to the log file via
+  // a raw fd, not through a `.pipe()` in this process: a piped stream only
+  // keeps flowing while this process is alive to relay it, which defeats
+  // `detached` (a backgrounded llama-server would eventually block writing
+  // to an unread pipe once the CLI invocation that started it exits).
+  // Matches Node's own documented pattern for a detached, file-logging
+  // child: the fd is intentionally left open rather than closed here, since
+  // this process (a short-lived CLI invocation) exits shortly after anyway.
+  const logFd = fs.openSync(config.logFile, "a");
   const child = spawn(config.binaryPath, buildServerArgs(config), {
-    stdio: ["ignore", "pipe", "pipe"],
-    detached: process.platform !== "win32",
+    stdio: ["ignore", logFd, logFd],
+    detached: true,
   });
-  child.stdout?.pipe(log);
-  child.stderr?.pipe(log);
 
   if (!child.pid) {
     throw new ServerError(`Failed to spawn ${config.binaryPath}.`);

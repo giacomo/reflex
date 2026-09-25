@@ -19,7 +19,7 @@ describe("loadConfig", () => {
     const config = loadConfig(undefined, tmpDir);
     expect(config).toEqual(DEFAULT_CONFIG);
     expect(config.router.threshold).toBe(0.8);
-    expect(config.fast.temperature).toBe(0.7);
+    expect(config.fast.temperature).toBe(1.0);
     expect(config.deep.temperature).toBe(1.0);
     expect(config.deep.topK).toBe(-1);
   });

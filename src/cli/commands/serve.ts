@@ -7,7 +7,7 @@ import { UnsupportedPlatformError } from "../../runtime/platform.js";
 export function registerServeCommand(program: Command): void {
   program
     .command("serve")
-    .description("Run a localhost-only HTTP server exposing POST /decide and GET /health")
+    .description("Run a localhost-only HTTP server: POST /decide, GET /health, and a GET / test page")
     .option("--config <path>", "path to reflex.config.json")
     .option("--port <port>", "override server.port from config")
     .action(async (opts: { config?: string; port?: string }) => {
@@ -28,7 +28,9 @@ export function registerServeCommand(program: Command): void {
             resolve();
           });
         });
-        process.stdout.write(`reflex serve listening on http://${config.server.host}:${port}\n`);
+        const base = `http://${config.server.host}:${port}`;
+        process.stdout.write(`reflex serve listening on ${base}\n`);
+        process.stdout.write(`Try it in a browser: ${base}/\n`);
 
         const shutdown = () => {
           process.stdout.write("\nShutting down...\n");

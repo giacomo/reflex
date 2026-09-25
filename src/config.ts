@@ -4,17 +4,20 @@ import path from "node:path";
 import { DEFAULT_DEEP_PORT, DEFAULT_FAST_PORT, DEFAULT_SERVE_PORT } from "./constants.js";
 
 /**
- * Generation parameters sent to llama-server. Defaults for `fast` follow the
- * MiniCPM5 no-think recommendation (temp 0.7 / top_p 0.95) and set min_p to 0
- * per the MiniCPM llama.cpp cookbook (the default min_p=0.05 can suppress the
- * exact tokens needed to break a repetition loop). Defaults for `deep` follow
- * the Spark-X2.5 model card (temperature=1.0, top_p=0.95, top_k=-1).
+ * Generation parameters sent to llama-server. Defaults for `fast` follow
+ * MiniCPM5's recommended sampling (temperature=1.0, top_p=0.95, min_p=0.0).
+ * Defaults for `deep` follow the Spark-X2.5 model card (temperature=1.0,
+ * top_p=0.95, top_k=-1). Both set min_p to 0 rather than llama-server's
+ * own 0.05 default, which can suppress the exact tokens needed to break a
+ * repetition loop; if repetitive output still shows up, MiniCPM's card
+ * suggests adding `repetitionPenalty: 1.05`.
  */
 const GenerationParamsSchema = z.object({
   temperature: z.number().min(0),
   topP: z.number().min(0).max(1),
   topK: z.number().int(),
   minP: z.number().min(0).max(1),
+  repetitionPenalty: z.number().positive().optional(),
   maxTokens: z.number().int().positive().optional(),
 });
 export type GenerationParams = z.infer<typeof GenerationParamsSchema>;
@@ -61,7 +64,7 @@ export const ConfigSchema = z.object({
   models: ModelsSchema.default({}),
   runtime: RuntimeSchema.default({}),
   fast: GenerationParamsSchema.default({
-    temperature: 0.7,
+    temperature: 1.0,
     topP: 0.95,
     topK: 40,
     minP: 0.0,
