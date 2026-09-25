@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "models": {
+    "minicpm5-1b": {
+      "displayName": "MiniCPM5-1B",
+      "repo": "openbmb/MiniCPM5-1B-GGUF",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/openbmb/MiniCPM5-1B-GGUF/blob/main/README.md",
+      "role": "fast",
+      "quantPreference": ["Q4_K_M", "Q4_K_S", "Q4_0", "Q8_0", "F16"],
+      "minMemoryBytesMultiplier": 1.5,
+      "contextLength": 131072,
+      "supportsThinkingToggle": true,
+      "requiresRuntime": "any",
+      "notes": "Chat template ships in the GGUF metadata; use --jinja. Toggle thinking mode per-request via chat_template_kwargs.enable_thinking, or disable it server-wide via -rea off / --reasoning-format none."
+    },
+    "spark-x2.5-4b": {
+      "displayName": "Spark-X2.5-4B",
+      "repo": "XHToken/Spark-X2.5-4B-GGUF",
+      "license": "Apache-2.0",
+      "licenseUrl": "https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF/blob/main/README.md",
+      "role": "deep",
+      "quantPreference": ["Q4_K_M", "Q4_K_S", "Q4_0", "Q8_0"],
+      "minMemoryBytesMultiplier": 1.5,
+      "contextLength": 1048576,
+      "supportsThinkingToggle": true,
+      "requiresRuntime": "fork",
+      "notes": "Native Spark2_5ForCausalLM support requires the XHToken/llama.cpp fork. GGUF file names are not hardcoded here: reflex resolves the actual quant file name from the Hugging Face tree API at pull time, matching quantPreference in order."
+    }
+  }
+}
