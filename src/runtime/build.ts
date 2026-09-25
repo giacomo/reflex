@@ -2,21 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import { defaultExec, type Exec } from "./exec.js";
-import { detectGpuBackend, type GpuBackend } from "./platform.js";
+import { detectGpuBackend } from "./platform.js";
+import { readLock, writeLock, type SourceBuildLock } from "./lock.js";
 
 export class BuildError extends Error {}
 
 export const FORK_REPO_URL = "https://github.com/XHToken/llama.cpp";
 export const FORK_BRANCH = "master";
-
-export interface RuntimeLock {
-  repoUrl: string;
-  branch: string;
-  commitHash: string;
-  backend: GpuBackend;
-  builtAt: string;
-  binaryPath: string;
-}
 
 export interface BuildOptions {
   dir: string;
@@ -29,18 +21,9 @@ export interface BuildOptions {
   onOutput?: (chunk: string) => void;
 }
 
-function lockPath(dir: string): string {
-  return path.join(dir, "lock.json");
-}
-
+/** Only meaningful for the from-source build; on Windows the prebuilt path is used instead. */
 export function serverBinaryPath(dir: string): string {
   return path.join(dir, "build", "bin", "llama-server");
-}
-
-export function readLock(dir: string): RuntimeLock | undefined {
-  const file = lockPath(dir);
-  if (!fs.existsSync(file)) return undefined;
-  return JSON.parse(fs.readFileSync(file, "utf8")) as RuntimeLock;
 }
 
 /**
@@ -49,7 +32,7 @@ export function readLock(dir: string): RuntimeLock | undefined {
  * points at both already exist, the build is skipped entirely (unless
  * `force` is set), so a second `reflex setup` run doesn't rebuild.
  */
-export async function buildRuntime(opts: BuildOptions): Promise<RuntimeLock> {
+export async function buildRuntime(opts: BuildOptions): Promise<SourceBuildLock> {
   const exec = opts.exec ?? defaultExec;
   const repoUrl = opts.repoUrl ?? FORK_REPO_URL;
   const branch = opts.branch ?? FORK_BRANCH;
@@ -57,7 +40,7 @@ export async function buildRuntime(opts: BuildOptions): Promise<RuntimeLock> {
 
   if (!opts.force) {
     const existing = readLock(opts.dir);
-    if (existing && fs.existsSync(binaryPath)) {
+    if (existing?.source === "source" && fs.existsSync(binaryPath)) {
       return existing;
     }
   }
@@ -110,7 +93,8 @@ export async function buildRuntime(opts: BuildOptions): Promise<RuntimeLock> {
   const revParse = await exec("git", ["rev-parse", "HEAD"], { cwd: opts.dir });
   const commitHash = revParse.stdout.trim() || "unknown";
 
-  const lock: RuntimeLock = {
+  const lock: SourceBuildLock = {
+    source: "source",
     repoUrl,
     branch,
     commitHash,
@@ -118,6 +102,6 @@ export async function buildRuntime(opts: BuildOptions): Promise<RuntimeLock> {
     builtAt: new Date().toISOString(),
     binaryPath,
   };
-  fs.writeFileSync(lockPath(opts.dir), JSON.stringify(lock, null, 2));
+  writeLock(opts.dir, lock);
   return lock;
 }

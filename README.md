@@ -8,25 +8,35 @@ entirely on your machine, on two local models:
 - **Fast layer**: [MiniCPM5-1B](https://huggingface.co/openbmb/MiniCPM5-1B-GGUF) (Apache-2.0) answers every question in one call, thinking mode off.
 - **Deep layer**: [Spark-X2.5-4B](https://huggingface.co/XHToken/Spark-X2.5-4B-GGUF) (Apache-2.0) re-answers only the questions the fast layer wasn't confident about.
 
-Both run via `llama-server` from the [XHToken/llama.cpp fork](https://github.com/XHToken/llama.cpp)
-(MIT, branch `master`), which adds the `Spark2_5ForCausalLM` architecture Spark-X2.5 needs. There is
-no cloud dependency and no telemetry: the only network calls reflex makes are to Hugging Face, to
-download model weights you asked for.
+Both run on `llama-server` from [llama.cpp](https://github.com/ggml-org/llama.cpp) (MIT). Spark-X2.5
+needs the `Spark2_5ForCausalLM` architecture, added to the [XHToken/llama.cpp
+fork](https://github.com/XHToken/llama.cpp) first and since merged into mainline llama.cpp
+([ggml-org/llama.cpp#27868](https://github.com/ggml-org/llama.cpp/pull/27868), released from build
+b10828 on). There is no cloud dependency and no telemetry: the only network calls reflex makes are
+to Hugging Face (model weights) and GitHub (the llama.cpp runtime), both of which you can point at
+your own mirrors via `HF_ENDPOINT`.
 
 `reflex` is a working title, kept in one constant (`TOOL_NAME` in `src/constants.ts`) so it's a
 one-line change to rename.
 
 ## Requirements
 
-- **Linux or macOS.** Windows isn't supported yet — `reflex setup`/`up`/`doctor` fail fast with a
-  clear message instead of a confusing spawn error partway through.
-- **git, CMake, and a C++ compiler** on `PATH` to build the llama.cpp fork from source. `reflex
-  setup` checks for these first and prints install instructions per OS if anything's missing.
+- **Linux, macOS, or Windows.**
+  - **Linux/macOS**: builds the XHToken fork from source by default (needs git, CMake, and a C++
+    compiler — `reflex setup` checks for these and prints install instructions if anything's
+    missing), falling back to a downloaded prebuilt binary if no compiler is found.
+  - **Windows**: always downloads a prebuilt `llama-server` from the official
+    [ggml-org/llama.cpp releases](https://github.com/ggml-org/llama.cpp/releases) instead of trying
+    to automate an MSVC/clang build. This works because mainline llama.cpp now has native Spark2_5
+    support (see above) — no fork-specific binary is needed. `reflex` always resolves the *latest*
+    compatible release rather than a pinned one.
 - **Memory**: `reflex up` estimates each model's RAM need as `file size × 1.5` (a heuristic, not a
   benchmark) and warns before starting both models if that clearly won't fit, offering to start
   the fast layer alone or use the smaller `spark-x2.5-1.7b` deep model instead.
-- An NVIDIA GPU with `nvcc` on `PATH` is used automatically (`-DGGML_CUDA=ON`); Apple Silicon gets
-  Metal by default; otherwise it's CPU-only.
+- Building from source: an NVIDIA GPU with `nvcc` on `PATH` is used automatically
+  (`-DGGML_CUDA=ON`); Apple Silicon gets Metal by default; otherwise it's CPU-only. The Windows/
+  fallback prebuilt path is CPU-only — point `runtime.fast.binary` / `runtime.deep.binary` at a
+  CUDA/Vulkan build from the same releases page yourself if you want GPU acceleration there.
 
 ## Quickstart
 
@@ -162,14 +172,16 @@ Read this before trusting a number reflex prints.
 - **Memory estimates are a heuristic (`file size × 1.5`), not measured.** KV cache size depends on
   context length and how many slots llama-server allocates; if you set `runtime.contextSize.deep`
   much higher than the 8192 default, the real requirement will be higher than this estimate says.
-- **The `Spark-X2.5-4B-GGUF` README itself notes that native `spark2_5` support "requires
-  llama.cpp `b10828` or later"** on the mainline `ggml-org/llama.cpp`, which may mean this
-  architecture lands upstream at some point. reflex still targets the XHToken fork specifically, as
-  specified, since that's the version actually verified to work today; if mainline gains the same
-  support, pointing `runtime.deep.binary` at it instead is a one-line config change.
+- **The prebuilt/fallback path always resolves the *latest* ggml-org/llama.cpp release**, not a
+  pinned version, since these nightly-style `bNNNN` builds are meant to always work standalone.
+  This means the exact binary in use can change between runs on a machine that uses the fallback
+  path (recorded each time in `lock.json` for traceability) — a deliberate tradeoff for not having
+  to maintain a version pin, per how these releases are meant to be consumed.
 - Tests never load a real model — they run against small local HTTP servers standing in for
   `llama-server`'s documented endpoint shapes (`/apply-template`, `/completion` with
-  `completion_probabilities`) and a fake Hugging Face API for downloads.
+  `completion_probabilities`), a fake Hugging Face API for model downloads, and a fake GitHub API
+  for the prebuilt-binary path (verified for real, including actual `tar`-based zip/tar.gz
+  extraction, in addition to the mocked tests).
 
 ## Development
 

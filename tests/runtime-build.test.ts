@@ -2,7 +2,8 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { buildRuntime, readLock, serverBinaryPath, BuildError } from "../src/runtime/build.js";
+import { buildRuntime, serverBinaryPath, BuildError } from "../src/runtime/build.js";
+import { readLock } from "../src/runtime/lock.js";
 import type { Exec, ExecResult } from "../src/runtime/exec.js";
 
 function fakeExec(dir: string, overrides: Partial<Record<string, ExecResult>> = {}): {
@@ -54,7 +55,8 @@ describe("buildRuntime", () => {
     expect(lock.commitHash).toBe("abc123");
     expect(lock.backend).toBe(process.platform === "darwin" ? "metal" : "cpu");
     expect(fs.existsSync(serverBinaryPath(dir))).toBe(true);
-    expect(readLock(dir)?.commitHash).toBe("abc123");
+    const persisted = readLock(dir);
+    expect(persisted?.source === "source" && persisted.commitHash).toBe("abc123");
 
     const commands = calls.map((c) => `${c.command} ${c.args[0]}`);
     expect(commands).toEqual(["git clone", "cmake -B", "cmake --build", "git rev-parse"]);

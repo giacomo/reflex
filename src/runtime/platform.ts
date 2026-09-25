@@ -1,21 +1,38 @@
 export class UnsupportedPlatformError extends Error {}
 
+const TOOL_LABEL = "reflex";
+
 /**
- * Building and running the llama.cpp fork is only supported on Linux and
- * macOS for now. Fail fast with a clear message instead of letting a cmake
- * or spawn error surface later.
+ * Linux and macOS build the XHToken/llama.cpp fork from source by default.
+ * Windows always uses a downloaded prebuilt llama-server instead (see
+ * prebuilt.ts) rather than trying to automate an MSVC/clang toolchain
+ * setup; Linux/macOS also fall back to prebuilt if no compiler is found.
  */
-export function assertSupportedPlatform(): void {
-  if (process.platform !== "linux" && process.platform !== "darwin") {
-    throw new UnsupportedPlatformError(
-      `${TOOL_LABEL} does not support ${process.platform} yet: building and running the llama.cpp ` +
-        "runtime is only implemented for Linux and macOS. Follow progress or contribute Windows " +
-        "support at the project repository.",
-    );
-  }
+export function isSupportedPlatform(): boolean {
+  return process.platform === "linux" || process.platform === "darwin" || process.platform === "win32";
 }
 
-const TOOL_LABEL = "reflex";
+export function usesPrebuiltByDefault(): boolean {
+  return process.platform === "win32";
+}
+
+export function unsupportedPlatformMessage(): string {
+  return (
+    `${TOOL_LABEL} does not support ${process.platform} yet: the llama.cpp runtime is only available ` +
+    "as a source build (Linux/macOS) or a downloaded prebuilt binary (Linux/macOS/Windows). Follow " +
+    "progress or contribute support for this platform at the project repository."
+  );
+}
+
+/**
+ * Fail fast with a clear message instead of letting a cmake or spawn error
+ * surface later, for the (now rare) truly unsupported platforms.
+ */
+export function assertSupportedPlatform(): void {
+  if (!isSupportedPlatform()) {
+    throw new UnsupportedPlatformError(unsupportedPlatformMessage());
+  }
+}
 
 export type GpuBackend = "cuda" | "metal" | "cpu";
 

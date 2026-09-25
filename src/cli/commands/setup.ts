@@ -2,9 +2,9 @@ import { Command } from "commander";
 import { loadConfig, ConfigError } from "../../config.js";
 import { runtimeDir } from "../../paths.js";
 import { LlamaCppRuntime } from "../../runtime/runtime.js";
-import { PrerequisiteError } from "../../runtime/prerequisites.js";
-import { UnsupportedPlatformError } from "../../runtime/platform.js";
+import { assertSupportedPlatform, UnsupportedPlatformError, usesPrebuiltByDefault } from "../../runtime/platform.js";
 import { BuildError } from "../../runtime/build.js";
+import { PrebuiltError } from "../../runtime/prebuilt.js";
 import { pullModel, ModelManagerError } from "../../models/manager.js";
 import { formatBytes } from "../format.js";
 import { confirm } from "../prompt.js";
@@ -14,28 +14,36 @@ import { runDoctor } from "./doctor.js";
 export function registerSetupCommand(program: Command): void {
   program
     .command("setup")
-    .description("Check prerequisites, build the runtime, pull both models, then run doctor")
+    .description("Check prerequisites, set up the runtime, pull both models, then run doctor")
     .option("--config <path>", "path to reflex.config.json")
     .option("--yes", "skip download confirmation prompts", false)
     .action(async (opts: { config?: string; yes: boolean }) => {
       try {
         const config = loadConfig(opts.config);
+        assertSupportedPlatform();
         const runtime = new LlamaCppRuntime(runtimeDir());
 
-        process.stdout.write("Checking prerequisites...\n");
         const prereqs = runtime.checkPrerequisites();
-        if (!prereqs.ok) {
-          process.stderr.write("Missing build prerequisites:\n");
-          for (const line of prereqs.missingInstructions) process.stderr.write(`  - ${line}\n`);
-          process.exitCode = 1;
-          return;
+        const willBuildFromSource = !usesPrebuiltByDefault() && prereqs.ok;
+        if (willBuildFromSource) {
+          process.stdout.write("Building the llama.cpp runtime from source (this can take a few minutes)...\n");
+        } else if (usesPrebuiltByDefault()) {
+          process.stdout.write("Downloading a prebuilt llama-server (ggml-org/llama.cpp release)...\n");
+        } else {
+          process.stdout.write(
+            "No C++ compiler found; downloading a prebuilt llama-server instead of building from source...\n",
+          );
         }
 
-        process.stdout.write("Building the llama.cpp runtime (this can take a few minutes)...\n");
         const lock = await runtime.ensure({
           onOutput: (chunk) => process.stdout.write(chunk),
+          onDownloadProgress: renderProgress("runtime"),
         });
-        process.stdout.write(`Runtime ready: ${lock.backend} backend, commit ${lock.commitHash.slice(0, 12)}\n`);
+        process.stdout.write(
+          lock.source === "source"
+            ? `Runtime ready: built from source, ${lock.backend} backend, commit ${lock.commitHash.slice(0, 12)}\n`
+            : `Runtime ready: prebuilt ${lock.repo}@${lock.tag} (${lock.assetName})\n`,
+        );
 
         for (const name of [config.models.fast, config.models.deep]) {
           const result = await pullModel(name, {
@@ -64,9 +72,9 @@ export function registerSetupCommand(program: Command): void {
       } catch (err) {
         if (
           err instanceof ConfigError ||
-          err instanceof PrerequisiteError ||
           err instanceof UnsupportedPlatformError ||
           err instanceof BuildError ||
+          err instanceof PrebuiltError ||
           err instanceof ModelManagerError
         ) {
           process.stderr.write(`${err.message}\n`);

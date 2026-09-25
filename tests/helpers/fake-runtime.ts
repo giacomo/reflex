@@ -3,7 +3,7 @@ import path from "node:path";
 import type { Runtime } from "../../src/runtime/runtime.js";
 import type { ServerConfig, StartedServer } from "../../src/runtime/server.js";
 import type { PrerequisiteReport } from "../../src/runtime/prerequisites.js";
-import type { RuntimeLock } from "../../src/runtime/build.js";
+import type { RuntimeLock } from "../../src/runtime/lock.js";
 
 export interface FakeRuntimeOptions {
   /** pid to report for every started/checked server; defaults to this test process's own pid. */
@@ -41,6 +41,7 @@ export function createFakeRuntime(opts: FakeRuntimeOptions = {}): FakeRuntime {
     },
     async ensure(): Promise<RuntimeLock> {
       return {
+        source: "source",
         repoUrl: "fake",
         branch: "master",
         commitHash: "fake",

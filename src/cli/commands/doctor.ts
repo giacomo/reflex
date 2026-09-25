@@ -4,6 +4,8 @@ import { runtimeDir } from "../../paths.js";
 import { LlamaCppRuntime } from "../../runtime/runtime.js";
 import { getLocalModelPath, readManifest } from "../../models/manager.js";
 import { statusAll, serverHandle } from "../../runtime/orchestrator.js";
+import { isSupportedPlatform, unsupportedPlatformMessage, usesPrebuiltByDefault } from "../../runtime/platform.js";
+import { readLock } from "../../runtime/lock.js";
 import { parseDecisionSchema, toJsonSchema } from "../../core/schema.js";
 import { buildMessages } from "../../core/prompt.js";
 import { applyTemplate, complete } from "../../core/backend.js";
@@ -25,21 +27,45 @@ export async function runDoctor(config: ReflexConfig): Promise<boolean> {
   const checks: Check[] = [];
   const runtime = new LlamaCppRuntime(runtimeDir());
 
-  const prereqs = runtime.checkPrerequisites();
+  const platformOk = isSupportedPlatform();
   checks.push({
-    name: "prerequisites",
-    ok: prereqs.ok,
-    detail: prereqs.ok
-      ? `git, cmake, ${prereqs.compilerName ?? "compiler"} found${prereqs.nvcc ? ", nvcc found (CUDA available)" : ""}`
-      : prereqs.missingInstructions.join(" "),
+    name: "platform",
+    ok: platformOk,
+    detail: platformOk ? process.platform : unsupportedPlatformMessage(),
   });
+
+  const prereqs = runtime.checkPrerequisites();
+  if (usesPrebuiltByDefault()) {
+    checks.push({
+      name: "build toolchain",
+      ok: true,
+      detail: "not needed on this platform: reflex downloads a prebuilt llama-server instead of building from source",
+    });
+  } else {
+    checks.push({
+      name: "build toolchain",
+      ok: true,
+      detail: prereqs.ok
+        ? `git, cmake, ${prereqs.compilerName ?? "compiler"} found${prereqs.nvcc ? ", nvcc found (CUDA available)" : ""}: will build from source`
+        : `${prereqs.missingInstructions.join(" ")} Falling back to a downloaded prebuilt llama-server instead.`,
+    });
+  }
 
   const binaryPath = runtime.binaryPath();
   const binaryExists = fs.existsSync(binaryPath);
+  const lock = readLock(runtimeDir());
+  const lockDetail =
+    lock?.source === "source"
+      ? `built from source, commit ${lock.commitHash.slice(0, 12)}`
+      : lock?.source === "prebuilt"
+        ? `prebuilt ${lock.repo}@${lock.tag}`
+        : undefined;
   checks.push({
     name: "runtime binary",
     ok: binaryExists,
-    detail: binaryExists ? binaryPath : `not built yet (${binaryPath}); run "reflex setup"`,
+    detail: binaryExists
+      ? `${binaryPath}${lockDetail ? ` (${lockDetail})` : ""}`
+      : `not set up yet (${binaryPath}); run "reflex setup"`,
   });
 
   for (const role of ["fast", "deep"] as const) {
