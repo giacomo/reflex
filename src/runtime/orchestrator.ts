@@ -134,6 +134,7 @@ export async function upAll(config: ReflexConfig, opts: UpOptions = {}): Promise
       gpuLayers: config.runtime.gpuLayers,
       threads: config.runtime.threads,
       generation: config[handle.role],
+      enableThinking: handle.role === "deep",
       logFile: handle.logFile,
       pidFile: handle.pidFile,
     });

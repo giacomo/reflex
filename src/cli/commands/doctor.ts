@@ -3,7 +3,11 @@ import { loadConfig, type ReflexConfig } from "../../config.js";
 import { runtimeDir } from "../../paths.js";
 import { LlamaCppRuntime } from "../../runtime/runtime.js";
 import { getLocalModelPath, readManifest } from "../../models/manager.js";
-import { statusAll } from "../../runtime/orchestrator.js";
+import { statusAll, serverHandle } from "../../runtime/orchestrator.js";
+import { parseDecisionSchema, toJsonSchema } from "../../core/schema.js";
+import { buildMessages } from "../../core/prompt.js";
+import { applyTemplate, complete } from "../../core/backend.js";
+import { extractTokenLogprobs } from "../../core/confidence.js";
 import fs from "node:fs";
 
 interface Check {
@@ -57,6 +61,62 @@ export async function runDoctor(config: ReflexConfig): Promise<boolean> {
       name: `${s.role} server`,
       ok: s.healthy,
       detail: s.running ? (s.healthy ? `healthy on port ${s.port}` : `running but not healthy (port ${s.port})`) : "not running",
+    });
+  }
+
+  const fastStatus = statuses.find((s) => s.role === "fast");
+  if (fastStatus?.healthy) {
+    const fastBaseUrl = serverHandle(config, "fast").baseUrl;
+    try {
+      const pingSchema = parseDecisionSchema({ questions: [{ name: "ping", options: ["ok"] }] });
+      const messages = buildMessages("Reply to this health check.", pingSchema);
+      const jsonSchema = toJsonSchema(pingSchema);
+      const startedAt = Date.now();
+      const prompt = await applyTemplate(fastBaseUrl, messages);
+      const result = await complete(fastBaseUrl, prompt, {
+        jsonSchema,
+        generation: config.fast,
+        nProbs: 3,
+      });
+      const latencyMs = Date.now() - startedAt;
+
+      let structuredOk = false;
+      try {
+        const parsed = JSON.parse(result.content) as Record<string, unknown>;
+        structuredOk = typeof parsed["ping"] === "string";
+      } catch {
+        structuredOk = false;
+      }
+      checks.push({
+        name: "structured output (fast)",
+        ok: structuredOk,
+        detail: structuredOk ? `valid JSON: ${result.content}` : `invalid JSON: ${result.content}`,
+      });
+
+      const tokens = extractTokenLogprobs(result.raw);
+      checks.push({
+        name: "logprobs (fast)",
+        ok: tokens !== undefined,
+        detail:
+          tokens !== undefined
+            ? `n_probs honored (${tokens.length} tokens with logprobs)`
+            : `no usable completion_probabilities in the response; confidence will be null and ` +
+              `router.onMissingConfidence ("${config.router.onMissingConfidence}") decides escalation`,
+      });
+
+      checks.push({ name: "ping latency (fast)", ok: true, detail: `${latencyMs}ms` });
+    } catch (err) {
+      checks.push({
+        name: "structured output (fast)",
+        ok: false,
+        detail: (err as Error).message,
+      });
+    }
+  } else {
+    checks.push({
+      name: "structured output (fast)",
+      ok: false,
+      detail: "fast server is not healthy; skipped",
     });
   }
 

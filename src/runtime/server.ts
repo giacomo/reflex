@@ -14,6 +14,12 @@ export interface ServerConfig {
   gpuLayers: number | "auto" | "all";
   threads: number;
   generation: GenerationParams;
+  /**
+   * Each reflex-managed server is single-purpose (fast = never thinks, deep
+   * = always thinks), so the thinking-mode toggle is a fixed startup flag
+   * rather than something sent per HTTP request.
+   */
+  enableThinking: boolean;
   logFile: string;
   pidFile: string;
 }
@@ -21,10 +27,9 @@ export interface ServerConfig {
 /**
  * Builds llama-server's argv. Flag names and semantics are taken from the
  * XHToken/llama.cpp fork's `tools/server/README.md` (`-m`, `-c`, `-ngl`,
- * `-t`, `--host`, `--port`, `--jinja`, sampling flags): none of these are
- * guessed. Per-request sampling and `chat_template_kwargs` (used to toggle
- * thinking mode) are sent with each HTTP request instead of set here, since
- * fast/deep calls need different values per call.
+ * `-t`, `--host`, `--port`, `--jinja`, `--chat-template-kwargs`, sampling
+ * flags): none of these are guessed. Per-request sampling overrides (used
+ * when escalating a single question) are still sent with each HTTP request.
  */
 export function buildServerArgs(config: ServerConfig): string[] {
   const args = [
@@ -35,6 +40,7 @@ export function buildServerArgs(config: ServerConfig): string[] {
     "--host", config.host,
     "--port", String(config.port),
     "--jinja",
+    "--chat-template-kwargs", JSON.stringify({ enable_thinking: config.enableThinking }),
     "--temp", String(config.generation.temperature),
     "--top-p", String(config.generation.topP),
     "--top-k", String(config.generation.topK),

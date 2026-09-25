@@ -5,6 +5,7 @@ import { registerModelsCommand } from "./commands/models.js";
 import { registerUpDownStatusCommands } from "./commands/up.js";
 import { registerDoctorCommand } from "./commands/doctor.js";
 import { registerSetupCommand } from "./commands/setup.js";
+import { registerDecideCommand } from "./commands/decide.js";
 
 const VERSION = "0.1.0";
 
@@ -18,6 +19,7 @@ registerModelsCommand(program);
 registerUpDownStatusCommands(program);
 registerDoctorCommand(program);
 registerSetupCommand(program);
+registerDecideCommand(program);
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
