@@ -17,7 +17,12 @@ export function registerSetupCommand(program: Command): void {
     .description("Check prerequisites, set up the runtime, pull both models, then run doctor")
     .option("--config <path>", "path to reflex.config.json")
     .option("--yes", "skip download confirmation prompts", false)
-    .action(async (opts: { config?: string; yes: boolean }) => {
+    .option(
+      "--force-runtime",
+      "redo runtime setup even if one is already in place (e.g. to pick up a newly detected GPU)",
+      false,
+    )
+    .action(async (opts: { config?: string; yes: boolean; forceRuntime: boolean }) => {
       try {
         const config = loadConfig(opts.config);
         assertSupportedPlatform();
@@ -36,13 +41,14 @@ export function registerSetupCommand(program: Command): void {
         }
 
         const lock = await runtime.ensure({
+          force: opts.forceRuntime,
           onOutput: (chunk) => process.stdout.write(chunk),
           onDownloadProgress: renderProgress("runtime"),
         });
         process.stdout.write(
           lock.source === "source"
             ? `Runtime ready: built from source, ${lock.backend} backend, commit ${lock.commitHash.slice(0, 12)}\n`
-            : `Runtime ready: prebuilt ${lock.repo}@${lock.tag} (${lock.assetName})\n`,
+            : `Runtime ready: prebuilt ${lock.repo}@${lock.tag}, ${lock.backend} backend (${lock.assetName})\n`,
         );
 
         for (const name of [config.models.fast, config.models.deep]) {

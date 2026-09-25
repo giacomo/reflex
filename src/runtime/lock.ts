@@ -16,7 +16,9 @@ export interface PrebuiltLock {
   source: "prebuilt";
   repo: string;
   tag: string;
+  backend: GpuBackend;
   assetName: string;
+  companionAssetName: string | undefined;
   builtAt: string;
   binaryPath: string;
 }

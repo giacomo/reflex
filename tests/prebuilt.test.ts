@@ -71,21 +71,68 @@ describe("resolvePrebuiltAsset", () => {
       { tag_name: "b9999", assets: [{ name: computeAssetName("b9999"), filePath: archivePath }] },
     ]);
 
-    const asset = await resolvePrebuiltAsset({ apiBase: server.url });
+    const asset = await resolvePrebuiltAsset({ apiBase: server.url, hasNvidiaGpu: false });
     expect(asset.tag).toBe("b11188");
     expect(asset.assetName).toBe(assetName);
+    expect(asset.backend).toBe(process.platform === "darwin" ? "metal" : "cpu");
+    expect(asset.companion).toBeUndefined();
     expect(asset.sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(asset.size).toBe(fs.statSync(archivePath).size);
   });
 
   it("throws when no release meets the minimum build number", async () => {
     server = await startFakeGithubServer([{ tag_name: "b100", assets: [] }]);
-    await expect(resolvePrebuiltAsset({ apiBase: server.url })).rejects.toThrow(PrebuiltError);
+    await expect(resolvePrebuiltAsset({ apiBase: server.url, hasNvidiaGpu: false })).rejects.toThrow(
+      PrebuiltError,
+    );
   });
 
   it("throws when the compatible release has no matching asset", async () => {
     server = await startFakeGithubServer([{ tag_name: `b${MIN_BUILD_NUMBER}`, assets: [] }]);
-    await expect(resolvePrebuiltAsset({ apiBase: server.url })).rejects.toThrow(PrebuiltError);
+    await expect(resolvePrebuiltAsset({ apiBase: server.url, hasNvidiaGpu: false })).rejects.toThrow(
+      PrebuiltError,
+    );
+  });
+
+  it("prefers a CUDA build + cudart companion when an NVIDIA GPU is detected", async () => {
+    if (process.platform !== "win32" && process.platform !== "linux") return; // no CUDA variant on macOS
+
+    const { archivePath } = buildFixture(tmpDir);
+    const plat = process.platform === "win32" ? "win" : "ubuntu";
+    const arch = process.arch === "arm64" ? "arm64" : "x64";
+    const e = process.platform === "win32" ? "zip" : "tar.gz";
+    const cudaAssetName = `llama-b11188-bin-${plat}-cuda-13.4-${arch}.${e}`;
+    const cudartAssetName =
+      process.platform === "win32"
+        ? `cudart-llama-bin-${plat}-cuda-13.4-${arch}.${e}` // Windows: no build tag
+        : `cudart-llama-b11188-bin-${plat}-cuda-13.4-${arch}.${e}`; // Linux: includes build tag
+
+    server = await startFakeGithubServer([
+      {
+        tag_name: "b11188",
+        assets: [
+          { name: computeAssetName("b11188"), filePath: archivePath }, // plain cpu build, should be ignored
+          { name: cudaAssetName, filePath: archivePath },
+          { name: cudartAssetName, filePath: archivePath },
+        ],
+      },
+    ]);
+
+    const asset = await resolvePrebuiltAsset({ apiBase: server.url, hasNvidiaGpu: true });
+    expect(asset.backend).toBe("cuda");
+    expect(asset.assetName).toBe(cudaAssetName);
+    expect(asset.companion?.assetName).toBe(cudartAssetName);
+  });
+
+  it("falls back to the plain CPU build when a GPU is present but no CUDA asset is offered", async () => {
+    const { archivePath } = buildFixture(tmpDir);
+    const assetName = computeAssetName("b11188");
+    server = await startFakeGithubServer([{ tag_name: "b11188", assets: [{ name: assetName, filePath: archivePath }] }]);
+
+    const asset = await resolvePrebuiltAsset({ apiBase: server.url, hasNvidiaGpu: true });
+    expect(asset.backend).toBe(process.platform === "darwin" ? "metal" : "cpu");
+    expect(asset.assetName).toBe(assetName);
+    expect(asset.companion).toBeUndefined();
   });
 });
 
